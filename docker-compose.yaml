@@ -1,0 +1,7 @@
+version: "3"
+services:
+  scraper:
+#    build: https://github.com/Eldies/toy_scraper.git
+    build: .
+    volumes:
+      - .:/src
