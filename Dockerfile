@@ -3,4 +3,7 @@ WORKDIR /src
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-CMD sleep 1000
+COPY scrapy.cfg .
+COPY toys_scraper ./toys_scraper
+
+CMD scrapy crawl jukate-spider

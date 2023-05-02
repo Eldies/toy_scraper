@@ -5,3 +5,15 @@ services:
     build: .
     volumes:
       - .:/src
+    depends_on:
+      - mongo
+    environment:
+      MONGO_DATABASE: toy_scraper
+      MONGO_URI: 'mongodb://mongo'
+#      MONGO_URI: 'mongodb://user:pwd@mongo'
+
+  mongo:
+    image: mongo
+    restart: always
+    ports:
+      - 27017:27017
