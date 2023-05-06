@@ -25,11 +25,12 @@ class MongoPipeline:
 
     def close_spider(self, spider):
         list_of_collections = self.db.list_collection_names()
-        if self.old_collection_name in list_of_collections:
-            self.db.drop_collection(self.old_collection_name)
-        if self.collection_name in list_of_collections:
-            self.db[self.collection_name].rename(self.old_collection_name)
-        self.db[self.new_collection_name].rename(self.collection_name)
+        if self.new_collection_name in list_of_collections:
+            if self.old_collection_name in list_of_collections:
+                self.db.drop_collection(self.old_collection_name)
+            if self.collection_name in list_of_collections:
+                self.db[self.collection_name].rename(self.old_collection_name)
+            self.db[self.new_collection_name].rename(self.collection_name)
         self.client.close()
 
     def process_item(self, item, spider):
