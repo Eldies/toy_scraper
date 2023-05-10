@@ -1,9 +1,13 @@
 import string
+from dataclasses import dataclass
+
 from scrapy.http import Response
 from scrapy.linkextractors import LinkExtractor
 from scrapy.spiders import Rule, CrawlSpider
 
 from toys_scraper.items import MarkingItem
+
+ALLOWED_MARKINGS_SYMBOLS = string.ascii_uppercase + 'n' + ' ' + string.punctuation + string.digits
 
 
 class JukateSpider(CrawlSpider):
@@ -23,32 +27,53 @@ class JukateSpider(CrawlSpider):
 #        if not tables:
 #            self.pages_wo_tables.append(response.url)
         for table in tables:
-            comment_cells = table.xpath('./tr[position() > 1]/td[5]')
-            name_cells = table.xpath('./tr[position() > 1]/td[2]')
-            comment_texts = comment_cells.xpath('string(.)').getall()
-            name_texts = name_cells.xpath('string(.)').getall()
-            comment_texts = list(filter(lambda s: s and s != '-', map(lambda s: s.strip(), comment_texts)))
-            name_texts = list(filter(lambda s: s and s != '-', map(lambda s: s.strip(), name_texts)))
+            title = table.xpath("./preceding-sibling::h2[1]/text()").get()
+
+            @dataclass
+            class LineContent:
+                name: str
+                comment: str
+
+            lines = [
+                LineContent(
+                    name=line.xpath('string(./td[2])').get().strip(),
+                    comment=line.xpath('string(./td[5])').get().strip(),
+                )
+                for line in table.xpath('./tr[position() > 1]')
+            ]
+            if not lines:
+                continue
 
             def looks_like_marking(s: str) -> bool:
-                if any(c in string.ascii_lowercase and c != 'n' for c in s):
+                if any(c not in ALLOWED_MARKINGS_SYMBOLS for c in s):
                     return False
                 if all(c not in string.digits for c in s):
                     return False
                 return True
 
-            if len(comment_texts) > len(comment_cells) - 2 and all(looks_like_marking(t) for t in comment_texts):
-                texts = comment_texts
-            elif len(name_texts) > len(name_cells) - 2 and all(looks_like_marking(t) for t in name_texts):
-                texts = name_texts
-            else:
-                texts = []
+            n_names_look_like_markings = len(list(filter(lambda line: looks_like_marking(line.name), lines)))
+            n_comments_look_like_markings = len(list(filter(lambda line: looks_like_marking(line.comment), lines)))
 
-            for text in texts:
+            if n_names_look_like_markings < max(1, len(lines) - 2) and n_comments_look_like_markings < max(1, len(lines) - 2):
+                continue
+
+            use_name_as_marking = n_names_look_like_markings >= n_comments_look_like_markings
+
+            for line in lines:
+                marking = line.comment
+                name = line.name
+                if use_name_as_marking:
+                    marking = line.name
+                    name = None
+                if not looks_like_marking(marking):
+                    continue
+
                 yield MarkingItem(
-                    marking=text,
+                    marking=marking,
                     site='jukate.ru' + ('/eng' if 'eng' in response.url else ''),
                     link=response.url,
+                    series_id=title,
+                    name=name,
                 )
 
 #    @classmethod
