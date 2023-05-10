@@ -24,19 +24,46 @@ class EuroKatSpider(CrawlSpider):
             return
         column_names = [
             column.xpath('string(.)').get().strip()
-            for column in response.xpath('//table[1]/tr[1]/td')
+            for column in response.xpath('(//table/tr)[1]/td')
         ]
         if len(column_names) == 1:
             return
-        assert column_names[0] in ('OrgNr', 'MPG-Nr'), (column_names, response.url)
-        for line in response.xpath('//table/tr'):
+
+        is_2_table = column_names in (['OrgNr', 'Figur'], ['OrgNr', 'Figur', ''])
+        is_4_table = column_names == ['MPG-Nr', 'Figur', 'Serie', 'ab']
+        assert is_2_table or is_4_table, (column_names, response.url)
+
+        series_name: str = None
+
+        for line in response.xpath("//table/tr"):
+
+            if is_4_table:
+                column3 = line.xpath('string(./td[3])').get().strip()
+                if column3 and column3 != '"':
+                    series_name = column3
+                elif not column3:
+                    series_name = None
+            elif is_2_table:
+                if line.xpath('./td[1]/a/img/@src').get() == "../genPict/Detail.gif":
+                    series_name = line.xpath('string(./td[2])').get().strip()
+                elif not line.xpath('string(./td[1])').get().strip():
+                    series_name = None
+
+            if series_name is None:
+                continue
+
             marking = line.xpath('string(./td[1])').get().strip()
             if not marking or marking in ('OrgNr', 'MPG-Nr', '???', 'ohne'):
                 continue
             if '?' in marking:
                 continue
+
+            toy_name = line.xpath('string(./td[2])').get().strip()
+
             yield MarkingItem(
                 marking=marking,
                 site='euro-kat.de',
                 link=response.url,
+                series_id=' '.join(series_name.split()) or None,
+                name=' '.join(toy_name.split()) or None,
             )
